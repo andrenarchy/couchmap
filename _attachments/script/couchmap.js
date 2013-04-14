@@ -30,6 +30,7 @@ L.CouchMap = function (options) {
 
   var layer_nodes_coarse = new L.LayerGroup();
   var layer_nodes_fine = new L.MarkerClusterGroup();
+  var layer_links = new L.LayerGroup();
   var nodes = {};
   var links_pending = {};
 
@@ -86,6 +87,7 @@ L.CouchMap = function (options) {
   // shows nodes/counts based on client-side clustering
   function processBboxCountFine(data) {
     layers['nodes'].clearLayers().addLayer( layer_nodes_fine );
+    layers['links'].clearLayers().addLayer( layer_links );
     // loop over nodes and find links
     var missing_links = {};
     var bbox_nodes = [];
@@ -168,7 +170,7 @@ L.CouchMap = function (options) {
       return;
     }
 
-    var line = L.polyline([node1.data.latlng, node2.data.latlng]).addTo(layer['links']);
+    var line = L.polyline([node1.data.latlng, node2.data.latlng]).addTo(layer_links);
     node1.link_lines[id2] = line;
     node2.link_lines[id1] = line;
     return line;
@@ -177,6 +179,7 @@ L.CouchMap = function (options) {
   // shows coarse counts based on server-side map/reduce clustering
   function processBboxCountCoarse(data) {
     layers['nodes'].clearLayers().addLayer( layer_nodes_coarse.clearLayers() );
+    layers['links'].clearLayers();
 
     for (var i=0, item; item=data.rows[i++]; ) {
       // hack in order to pass parameters to click handler
