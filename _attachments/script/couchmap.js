@@ -1,7 +1,8 @@
 L.CouchMap = function (options) {
   var options = L.extend({
-      'nodesUrlSpatial': '_spatial/nodes_essentials',
       'nodesUrl': '_view/nodes',
+      'nodesUrlSpatial': '_spatial/nodes',
+      'nodesUrlCoarse': '_view/nodes_coarse',
       'coarseThreshold': 0,
       'coarseFactor': 0.5,
     }, options);
@@ -42,7 +43,7 @@ L.CouchMap = function (options) {
         dataType: 'json',
         contentType: 'application/json',
         data: JSON.stringify({'keys': tiles}),
-        url: '_view/nodes_tilecount?group=true',
+        url: options['nodesUrlCoarse']+'?group=true',
         success: function(data) {console.log(data)}
       });
 
@@ -93,18 +94,20 @@ L.CouchMap = function (options) {
     var center = bbox.getCenter(),
         x = long2tile(center.lng, zoom),
         y = lat2tile(center.lat, zoom);
-    var xmin=x, xmax=x, ymin=y, ymax=y;
-    for (; bbox.contains( tile2LatLng(xmin--, y, zoom) ); ){};
-    for (; bbox.contains( tile2LatLng(xmax++, y, zoom) ); ){};
-    for (; bbox.contains( tile2LatLng(x, ymin--, zoom) ); ){};
-    for (; bbox.contains( tile2LatLng(x, ymax++, zoom) ); ){};
+    for (var xmin=x;   bbox.contains( [ center.lat, tile2long(xmin, zoom)] ); xmin--){};
+    for (var xmax=x+1; bbox.contains( [ center.lat, tile2long(xmax, zoom)] ); xmax++){};
+    for (var ymin=y;   bbox.contains( [ tile2lat(ymin, zoom), center.lng ] ); ymin--){};
+    for (var ymax=y+1; bbox.contains( [ tile2lat(ymax, zoom), center.lng ] ); ymax++){};
 
     tiles = [];
-    console.log(xmax-xmin)
-      console.log(ymax-ymin)
-    for (var y=ymin; y<=ymax; y++) {
-      for (var x=xmin; x<=xmax; x++) {
+    for (var y=ymin; y<ymax; y++) {
+      for (var x=xmin; x<xmax; x++) {
         tiles.push(zoom+'_'+x+'_'+y);
+        /*
+        var a = tile2LatLng(x,y,zoom),
+            b = tile2LatLng(x+1, y+1, zoom);
+        L.marker( [ (a.lat+b.lat)/2, (a.lng+b.lng)/2]).addTo(map);
+        */
       }
     }
     return tiles;
@@ -114,6 +117,10 @@ L.CouchMap = function (options) {
   function onBboxChange(e) {
     var bboxstr = map.getBounds().toBBoxString();
     console.log('bbox changed: '+bboxstr);
+    /*
+    var tiles = getTilesInBbox(map.getBounds(), map.getZoom());
+    console.log(tiles)
+    */
 
     /*
     var partitions = partitionBbox(map.getBounds(), options['coarseFactor'], map.getZoom());
