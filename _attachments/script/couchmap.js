@@ -29,7 +29,7 @@ L.CouchMap = function (options) {
   };
 
   var layer_nodes_coarse = new L.LayerGroup();
-  var layer_nodes_fine = new L.LayerGroup();
+  var layer_nodes_fine = new L.MarkerClusterGroup();
 
   // receives the count in the current bounding box and decides
   // whehter all data should be fetched or only a few more counts
@@ -63,7 +63,9 @@ L.CouchMap = function (options) {
           a = tile2LatLng(x, y, zoom),
           b = tile2LatLng(x+1, y+1, zoom);
       // place marker in the middle of the tile
-      L.marker( [ (a.lat+b.lat)/2, (a.lng+b.lng)/2]).addTo(layer_nodes_coarse);
+      var icon = new L.DivIcon({ html: '<div><span>' + item.value + '</span></div>', className: 'marker-cluster marker-cluster-large', iconSize: new L.Point(40, 40) });
+
+      L.marker( [ (a.lat+b.lat)/2, (a.lng+b.lng)/2], {icon: icon}).addTo(layer_nodes_coarse);
     }
   }
 
