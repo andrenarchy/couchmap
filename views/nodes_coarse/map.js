@@ -9,7 +9,7 @@ function(doc) {
         for (var zoom=0; zoom<18; zoom++) {
             var x = long2tile(doc.longitude, zoom),
                 y = lat2tile(doc.latitude, zoom);
-            emit(zoom+'_'+x+'_'+y, 1);
+            emit([zoom,x,y], 1);
         }
     }
 }

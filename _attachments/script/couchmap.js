@@ -3,8 +3,9 @@ L.CouchMap = function (options) {
       'nodesUrl': '_view/nodes',
       'nodesUrlSpatial': '_spatial/nodes',
       'nodesUrlCoarse': '_view/nodes_coarse',
-      'coarseThreshold': 0,
-      'coarseFactor': 0.5,
+      'coarseThreshold': 0,   // switch to coarse if this number of nodes
+                              // is exceeded
+      'coarseGranularity': 2, // 0: very coarse, 1 medium, 2 fine
     }, options);
 
   var map = null;
@@ -27,67 +28,43 @@ L.CouchMap = function (options) {
     'links': new L.CMLayerGroup( setLayer('links', true), setLayer('links', false) )
   };
 
+  var layer_nodes_coarse = new L.LayerGroup();
+  var layer_nodes_fine = new L.LayerGroup();
+
   // receives the count in the current bounding box and decides
   // whehter all data should be fetched or only a few more counts
   function processBboxCount(data) {
-    console.log(data)
     if (data.count < options['coarseThreshold']) {
       // fetch all data
     } else {
       // partition bbox and request counts for each partition
-      tiles = getTilesInBbox(map.getBounds(), map.getZoom());
-      console.log(tiles)
+      tiles = getTilesInBbox(map.getBounds(), Math.min(map.getZoom()+options['coarseGranularity'], map.getMaxZoom()));
 
-      $.ajax({
+      // $.post doesn't work (contentType cannot be passed)
+      requests.push( $.ajax({
         type: 'POST',
         dataType: 'json',
         contentType: 'application/json',
         data: JSON.stringify({'keys': tiles}),
         url: options['nodesUrlCoarse']+'?group=true',
-        success: function(data) {console.log(data)}
-      });
-
-      //$.post('_view/nodes_tilecount', {'keys': tiles},
-      //  function (data) {console.log(data)}
-      //)
+        success: processCoarseCount
+      }).fail(requestFail) );
     }
   }
 
-  // partition a bounding box according to a scale factor
-  function partitionBbox(bbox, factor, zoom) {
-    var ne = bbox.getNorthEast(),
-        sw = bbox.getSouthWest(),
-        new_bbox_size = factor*5e4/L.CRS.EPSG3857.scale(zoom),
-        n_e = Math.ceil(ne.lng/new_bbox_size),
-        n_n = Math.ceil(ne.lat/new_bbox_size),
-        n_w = Math.floor(sw.lng/new_bbox_size),
-        n_s = Math.floor(sw.lat/new_bbox_size);
+  // shows coarse counts
+  function processCoarseCount(data) {
+    layers['nodes'].clearLayers().addLayer( layer_nodes_coarse.clearLayers() );
 
-    var ret = [];
-    for (var y=n_s; y<n_n; y++){
-      for (var x=n_w; x<n_e; x++) {
-        var cur_sw = new L.LatLng(y*new_bbox_size, x*new_bbox_size),
-            cur_ne = new L.LatLng((y+1)*new_bbox_size, (x+1)*new_bbox_size);
-        ret.push(new L.LatLngBounds(cur_sw, cur_ne));
-
-      }
+    for (var i=0, item; item=data.rows[i++]; ) {
+      var zoom = item.key[0],
+          x = item.key[1],
+          y = item.key[2],
+          a = tile2LatLng(x, y, zoom),
+          b = tile2LatLng(x+1, y+1, zoom);
+      // place marker in the middle of the tile
+      L.marker( [ (a.lat+b.lat)/2, (a.lng+b.lng)/2]).addTo(layer_nodes_coarse);
     }
-    return ret;
-  }
-
-  // cf. http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
-  function long2tile(lon,zoom) { return (Math.floor((lon+180)/360*Math.pow(2,zoom))); }
-  function lat2tile(lat,zoom)  { return (Math.floor((1-Math.log(Math.tan(lat*Math.PI/180) + 1/Math.cos(lat*Math.PI/180))/Math.PI)/2 *Math.pow(2,zoom))); }
-  // returns NW-corner of tile
-  function tile2long(x,z) {
-    return (x/Math.pow(2,z)*360-180);
-  }
-  function tile2lat(y,z) {
-    var n=Math.PI-2*Math.PI*y/Math.pow(2,z);
-    return (180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n))));
-  }
-  function tile2LatLng(x,y,z) {
-    return new L.LatLng(tile2lat(y,z), tile2long(x,z));
   }
 
   function getTilesInBbox(bbox, zoom) {
@@ -102,12 +79,7 @@ L.CouchMap = function (options) {
     tiles = [];
     for (var y=ymin; y<ymax; y++) {
       for (var x=xmin; x<xmax; x++) {
-        tiles.push(zoom+'_'+x+'_'+y);
-        /*
-        var a = tile2LatLng(x,y,zoom),
-            b = tile2LatLng(x+1, y+1, zoom);
-        L.marker( [ (a.lat+b.lat)/2, (a.lng+b.lng)/2]).addTo(map);
-        */
+        tiles.push([zoom,x,y]);
       }
     }
     return tiles;
@@ -116,19 +88,6 @@ L.CouchMap = function (options) {
   // called whenever the bounding box of the map changed
   function onBboxChange(e) {
     var bboxstr = map.getBounds().toBBoxString();
-    console.log('bbox changed: '+bboxstr);
-    /*
-    var tiles = getTilesInBbox(map.getBounds(), map.getZoom());
-    console.log(tiles)
-    */
-
-    /*
-    var partitions = partitionBbox(map.getBounds(), options['coarseFactor'], map.getZoom());
-    layers['nodes'].clearLayers();
-    for (var i=0, part; part=partitions[i++];) {
-      L.rectangle(part).addTo(layers['nodes']);
-    }
-    */
 
     // abort any running ajax requests
     for (var i=0, request; request=requests[i++];) {
@@ -182,7 +141,32 @@ L.CouchMap = function (options) {
     return layers;
   }
 
-  var marker = L.marker([51.5, -0.09]);
+  // *************************************************************************
+  // Helper functions
+  // *************************************************************************
+
+  // cf. http://wiki.openstreetmap.org/wiki/Slippy_map_tilenames
+  function long2tile(lon,zoom) {
+    return (Math.floor((lon+180)/360*Math.pow(2,zoom)));
+  }
+
+  function lat2tile(lat,zoom)  {
+    return (Math.floor((1-Math.log(Math.tan(lat*Math.PI/180) + 1/Math.cos(lat*Math.PI/180))/Math.PI)/2 *Math.pow(2,zoom)));
+  }
+
+  // returns NW-corner of tile
+  function tile2long(x,z) {
+    return (x/Math.pow(2,z)*360-180);
+  }
+
+  function tile2lat(y,z) {
+    var n=Math.PI-2*Math.PI*y/Math.pow(2,z);
+    return (180/Math.PI*Math.atan(0.5*(Math.exp(n)-Math.exp(-n))));
+  }
+
+  function tile2LatLng(x,y,z) {
+    return new L.LatLng(tile2lat(y,z), tile2long(x,z));
+  }
 }
 
 // we enhance the onAdd and onRemove functions s.t. they call the provided
