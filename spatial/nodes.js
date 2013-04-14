@@ -3,7 +3,8 @@ function (doc) {
     emit(
       { type: "Point", coordinates: [doc.longitude, doc.latitude] }, 
       {
-        id: doc._id
+        id: doc._id,
+        latlng: [doc.latitude, doc.longitude]
         /* add anything you need for displaying this item on the map */
       }
     );

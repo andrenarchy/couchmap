@@ -3,7 +3,7 @@ L.CouchMap = function (options) {
       'nodesUrl': '_view/nodes',
       'nodesUrlSpatial': '_spatial/nodes',
       'nodesUrlCoarse': '_view/nodes_coarse',
-      'coarseThreshold': 0,   // switch to coarse if this number of nodes
+      'coarseThreshold': 500,   // switch to coarse if this number of nodes
                               // is exceeded
       'coarseGranularity': 2, // 0: very coarse, 1 medium, 2 fine
     }, options);
@@ -30,12 +30,43 @@ L.CouchMap = function (options) {
 
   var layer_nodes_coarse = new L.LayerGroup();
   var layer_nodes_fine = new L.MarkerClusterGroup();
+  var nodes = {};
+  var links_pending = {};
+
+
+  this.refresh = function () {
+    onBboxChange();
+  }
+
+  // called whenever the bounding box of the map changed
+  function onBboxChange(e) {
+    var bboxstr = map.getBounds().toBBoxString();
+
+    // abort any running ajax requests
+    for (var i=0, request; request=requests[i++];) {
+      request.abort();
+    }
+    requests = [];
+
+    // probe number of nodes in new bbox, then decide what to do
+    requests.push(
+      $.getJSON(options['nodesUrlSpatial'], { "bbox": bboxstr, count: true },
+        processBboxCount
+      ).fail(requestFail)
+    );
+  }
 
   // receives the count in the current bounding box and decides
   // whehter all data should be fetched or only a few more counts
   function processBboxCount(data) {
     if (data.count < options['coarseThreshold']) {
-      // fetch all data
+      var bboxstr = map.getBounds().toBBoxString();
+      // fetch all data in bbox
+      requests.push(
+        $.getJSON(options['nodesUrlSpatial'], { "bbox": bboxstr },
+          processBboxCountFine
+        ).fail(requestFail)
+      );
     } else {
       // partition bbox and request counts for each partition
       tiles = getTilesInBbox(map.getBounds(), Math.min(map.getZoom()+options['coarseGranularity'], map.getMaxZoom()));
@@ -47,13 +78,104 @@ L.CouchMap = function (options) {
         contentType: 'application/json',
         data: JSON.stringify({'keys': tiles}),
         url: options['nodesUrlCoarse']+'?group=true',
-        success: processCoarseCount
+        success: processBboxCountCoarse
       }).fail(requestFail) );
     }
   }
 
-  // shows coarse counts
-  function processCoarseCount(data) {
+  // shows nodes/counts based on client-side clustering
+  function processBboxCountFine(data) {
+    layers['nodes'].clearLayers().addLayer( layer_nodes_fine );
+    // loop over nodes and find links
+    var missing_links = {};
+    var bbox_nodes = [];
+    for (var i=0, row; row=data.rows[i++]; ) {
+      var nodedata = row.value;
+      bbox_nodes.push(nodedata);
+      addNode(row.id, nodedata)
+      if (!nodes[row.id].links_handled) {
+        if (nodedata.links) {
+          for (var j=0, link; link=nodedata.links[j++]; ) {
+            if (nodes[link.id]) {
+              addLink(row.id, link.id)
+              if (missing_links[row.id]) {
+                delete missing_links[row.id];
+              }
+            } else {
+              missing_links[link.id] = true;
+              if (!links_pending[link.id]) {
+                links_pending[link.id] = {};
+              }
+              links_pending[link.id][row.id] = true;
+            }
+          }
+          if (links_pending[row.id]) {
+            for (var link in links_pending[row.id]) {
+              addLink(row.id, link)
+            }
+            delete links_pending[row.id];
+          }
+        }
+        nodes[row.id].links_handled = true;
+      }
+    }
+    // TODO: onNodeUpdate
+
+    missing_links = Object.keys(missing_links);
+    if (missing_links.length>0) {
+      // get the missing nodes for establishing all links
+      $.ajax({
+        type: 'POST',
+        dataType: 'json',
+        contentType: "application/json",
+        data: JSON.stringify({"keys": missing_links}),
+        url: '_view/nodes',
+        success: function(data){
+          for (var i=0, row; row=data.rows[i++]; ) {
+            var nodedata = row.value;
+            addNode(row.id, nodedata);
+
+            if (links_pending[row.id]) {
+              for (var link in links_pending[row.id]) {
+                addLink(row.id, link);
+              }
+              delete links_pending[row.id];
+            }
+          }
+        }
+      });
+    }
+  }
+
+  function addNode(id, nodedata) {
+    if (nodes[id]) {
+      return;
+    }
+    nodes[id] = {
+      data: nodedata,
+      link_lines: {},
+      links_handled: false,
+      marker: new L.Marker(nodedata.latlng, {
+        title: id,
+      }).addTo(layer_nodes_fine)
+    };
+  }
+
+  function addLink(id1, id2) {
+    var node1 = nodes[id1], node2 = nodes[id2];
+
+    if (node1.link_lines[id2] && node2.neighbor_lines[id1]) {
+      return;
+    }
+
+    var line = L.polyline([node1.data.latlng, node2.data.latlng]).addTo(layer['links']);
+    node1.link_lines[id2] = line;
+    node2.link_lines[id1] = line;
+    return line;
+  }
+
+  // shows coarse counts based on server-side map/reduce clustering
+  function processBboxCountCoarse(data) {
     layers['nodes'].clearLayers().addLayer( layer_nodes_coarse.clearLayers() );
 
     for (var i=0, item; item=data.rows[i++]; ) {
@@ -90,28 +212,6 @@ L.CouchMap = function (options) {
       }
     }
     return tiles;
-  }
-
-  this.refresh = function () {
-    onBboxChange();
-  }
-
-  // called whenever the bounding box of the map changed
-  function onBboxChange(e) {
-    var bboxstr = map.getBounds().toBBoxString();
-
-    // abort any running ajax requests
-    for (var i=0, request; request=requests[i++];) {
-      request.abort();
-    }
-    requests = [];
-
-    // probe number of nodes in new bbox, then decide what to do
-    requests.push(
-      $.getJSON(options['nodesUrlSpatial'], { "bbox": bboxstr, count: true },
-        processBboxCount
-      ).fail(requestFail)
-    );
   }
 
   function activate() {
