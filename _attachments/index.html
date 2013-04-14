@@ -34,6 +34,7 @@
       });
       var layers = couchmap.getLayers();
       layers['nodes'].addTo(map);
+      layers['links'].addTo(map);
       L.control.layers({}, layers).addTo(map);
 
       $('#insertbutton').on('click', function () {
