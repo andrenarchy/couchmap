@@ -19,6 +19,9 @@
   </head>
   <body>
     <div id="mapdiv" style="width: 700px; height: 400px;"></div>
+    <form>
+      <input id="insertbutton" type="button" value="Insert 100 random datasets" />
+    </form>
     <script>
       // create map
       var map = L.map('mapdiv', { center: [52.488, 13.35], zoom: 13 });
@@ -32,6 +35,28 @@
       var layers = couchmap.getLayers();
       layers['nodes'].addTo(map);
       L.control.layers({}, layers).addTo(map);
+
+      $('#insertbutton').on('click', function () {
+        var bounds = map.getBounds(),
+            ne = bounds.getNorthEast(),
+            sw = bounds.getSouthWest(),
+            docs = [];
+        for (var i=0; i<50; i++) {
+          docs.push({
+            type: 'node',
+            latitude: sw.lat + Math.random()*(ne.lat-sw.lat),
+            longitude: sw.lng + Math.random()*(ne.lng-sw.lng)
+          });
+        }
+        $.ajax({
+          type: 'POST',
+          dataType: 'json',
+          contentType: 'application/json',
+          data: JSON.stringify({'docs': docs}),
+          url: '/couchmap/_bulk_docs',
+          success: function () { couchmap.refresh(); }
+        });
+      });
     </script>
   </body>
 </html>

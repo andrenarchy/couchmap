@@ -57,15 +57,20 @@ L.CouchMap = function (options) {
     layers['nodes'].clearLayers().addLayer( layer_nodes_coarse.clearLayers() );
 
     for (var i=0, item; item=data.rows[i++]; ) {
-      var zoom = item.key[0],
-          x = item.key[1],
-          y = item.key[2],
-          a = tile2LatLng(x, y, zoom),
-          b = tile2LatLng(x+1, y+1, zoom);
-      // place marker in the middle of the tile
-      var icon = new L.DivIcon({ html: '<div><span>' + item.value + '</span></div>', className: 'marker-cluster marker-cluster-large', iconSize: new L.Point(40, 40) });
+      // hack in order to pass parameters to click handler
+      (function(item) {
+        var zoom = item.key[0],
+            x = item.key[1],
+            y = item.key[2],
+            a = tile2LatLng(x, y, zoom),
+            b = tile2LatLng(x+1, y+1, zoom);
+        // place marker in the middle of the tile
+        var icon = new L.DivIcon({ html: '<div><span>' + item.value + '</span></div>', className: 'marker-cluster marker-cluster-large', iconSize: new L.Point(40, 40) });
 
-      L.marker( [ (a.lat+b.lat)/2, (a.lng+b.lng)/2], {icon: icon}).addTo(layer_nodes_coarse);
+        L.marker( [ (a.lat+b.lat)/2, (a.lng+b.lng)/2], {icon: icon}).addTo(layer_nodes_coarse).on('click', function(e) {
+          map.fitBounds([a,b])
+        });
+      }(item));
     }
   }
 
@@ -85,6 +90,10 @@ L.CouchMap = function (options) {
       }
     }
     return tiles;
+  }
+
+  this.refresh = function () {
+    onBboxChange();
   }
 
   // called whenever the bounding box of the map changed
