@@ -10,21 +10,21 @@
     <script src="http://cdn.leafletjs.com/leaflet-0.5.1/leaflet.js"></script>
     <script src="couchmap.js"></script>
     <script src="http://code.jquery.com/jquery-1.9.1.min.js"></script>
-        
-    </script>
   </head>
   <body>
-    <div id="mapdiv" style="width: 700px; height: 300px;"></div>
+    <div id="mapdiv" style="width: 700px; height: 400px;"></div>
     <script>
       // create map
-      var map = L.map('mapdiv', { center: [51.505, -0.09], zoom: 13 });
+      var map = L.map('mapdiv', { center: [52.488, 13.35], zoom: 13 });
       // add an OpenStreetMap tile layer
       L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
         attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
       }).addTo(map);
 
-      var couchmap = new L.CouchMap();
+      var couchmap = new L.CouchMap({
+      });
       var layers = couchmap.getLayers();
+      layers['nodes'].addTo(map);
       L.control.layers({}, layers).addTo(map);
     </script>
   </body>
