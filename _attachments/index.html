@@ -20,7 +20,7 @@
   <body>
     <div id="mapdiv" style="width: 700px; height: 400px;"></div>
     <form>
-      <input id="insertbutton" type="button" value="Insert 100 random datasets" />
+      <input id="insertbutton" type="button" value="Insert 5000 random datasets in current viewport" />
     </form>
     <script>
       // create map
@@ -41,7 +41,7 @@
             ne = bounds.getNorthEast(),
             sw = bounds.getSouthWest(),
             docs = [];
-        for (var i=0; i<50; i++) {
+        for (var i=0; i<5000; i++) {
           docs.push({
             type: 'node',
             latitude: sw.lat + Math.random()*(ne.lat-sw.lat),
