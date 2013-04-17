@@ -1,15 +1,5 @@
 function(doc) {
-    long2tile = function (lon,zoom) { 
-        return (Math.floor((lon+180)/360*Math.pow(2,zoom))); 
-    }
-    lat2tile = function (lat,zoom) { 
-        return (Math.floor((1-Math.log(Math.tan(lat*Math.PI/180) + 1/Math.cos(lat*Math.PI/180))/Math.PI)/2 *Math.pow(2,zoom))); 
-    }
-    if (doc.type=='node' && doc.longitude && doc.latitude) {
-        for (var zoom=0; zoom<=18; zoom++) {
-            var x = long2tile(doc.longitude, zoom),
-                y = lat2tile(doc.latitude, zoom);
-            emit([zoom,x,y], 1);
-        }
-    }
+  var common = require('views/lib/common');
+  var custom = require('views/lib/custom');
+  common.view_nodes_coarse(doc, custom.customdata);
 }

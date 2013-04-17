@@ -1,12 +1,5 @@
 function (doc) {
-  if (doc.type=='node' && doc.longitude && doc.latitude) {
-    emit(
-      doc._id, 
-      {
-        id: doc._id,
-        latlng: [doc.latitude, doc.longitude]
-        /* add anything you need for displaying this item on the map */
-      }
-    );
-  }
+  var common = require('views/lib/common');
+  var custom = require('views/lib/custom');
+  common.view_nodes(doc, custom.customdata);
 }
