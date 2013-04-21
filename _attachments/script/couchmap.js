@@ -6,6 +6,21 @@ L.CouchMap = function (options) {
       'coarseThreshold': 500,   // switch to coarse if this number of nodes
                               // is exceeded
       'coarseGranularity': 2, // 0: very coarse, 1 medium, 2 fine
+      // function that adds node to the layer
+      'nodeAdd': function(nodedata, layer) {
+        return L.marker(nodedata.latlng, {
+          title: nodedata.id,
+        }).addTo(layer)
+      },
+      // function that determines if the node should be included
+      // (perhaps you cannot filter everything via map-reduce)
+      'nodeFilter': function(nodedata) { return true; },
+      // called when the count of visible nodes has changed
+      'nodeCountUpdate': function (count) {},
+      // function that adds link to the layer
+      'linkAdd': function(node1, node2, layer) {
+         return L.polyline([node1.data.latlng, node2.data.latlng]).addTo(layer);
+      },
     }, options);
 
   var map = null;
@@ -31,9 +46,9 @@ L.CouchMap = function (options) {
   var layer_nodes_coarse = new L.LayerGroup();
   var layer_nodes_fine = new L.MarkerClusterGroup();
   var layer_links = new L.LayerGroup();
+
   var nodes = {};
   var links_pending = {};
-
 
   this.refresh = function () {
     onBboxChange();
@@ -93,35 +108,37 @@ L.CouchMap = function (options) {
     var bbox_nodes = [];
     for (var i=0, row; row=data.rows[i++]; ) {
       var nodedata = row.value;
-      bbox_nodes.push(nodedata);
-      addNode(row.id, nodedata)
-      if (!nodes[row.id].links_handled) {
-        if (nodedata.links) {
-          for (var j=0, link; link=nodedata.links[j++]; ) {
-            if (nodes[link.id]) {
-              addLink(row.id, link.id)
-              if (missing_links[row.id]) {
-                delete missing_links[row.id];
+      if (options['nodeFilter'](nodedata)) {
+        bbox_nodes.push(nodedata);
+        addNode(row.id, nodedata)
+        if (!nodes[row.id].links_handled) {
+          if (nodedata.links) {
+            for (var j=0, link; link=nodedata.links[j++]; ) {
+              if (nodes[link.id]) {
+                addLink(row.id, link.id)
+                if (missing_links[row.id]) {
+                  delete missing_links[row.id];
+                }
+              } else {
+                missing_links[link.id] = true;
+                if (!links_pending[link.id]) {
+                  links_pending[link.id] = {};
+                }
+                links_pending[link.id][row.id] = true;
               }
-            } else {
-              missing_links[link.id] = true;
-              if (!links_pending[link.id]) {
-                links_pending[link.id] = {};
+            }
+            if (links_pending[row.id]) {
+              for (var link in links_pending[row.id]) {
+                addLink(row.id, link)
               }
-              links_pending[link.id][row.id] = true;
+              delete links_pending[row.id];
             }
           }
-          if (links_pending[row.id]) {
-            for (var link in links_pending[row.id]) {
-              addLink(row.id, link)
-            }
-            delete links_pending[row.id];
-          }
+          nodes[row.id].links_handled = true;
         }
-        nodes[row.id].links_handled = true;
       }
     }
-    // TODO: onNodeUpdate
+    options['nodeCountUpdate'](bbox_nodes.length);
 
     missing_links = Object.keys(missing_links);
     if (missing_links.length>0) {
@@ -135,13 +152,15 @@ L.CouchMap = function (options) {
         success: function(data){
           for (var i=0, row; row=data.rows[i++]; ) {
             var nodedata = row.value;
-            addNode(row.id, nodedata);
+            if (options['nodeFilter'](nodedata)) {
+              addNode(row.id, nodedata);
 
-            if (links_pending[row.id]) {
-              for (var link in links_pending[row.id]) {
-                addLink(row.id, link);
+              if (links_pending[row.id]) {
+                for (var link in links_pending[row.id]) {
+                  addLink(row.id, link);
+                }
+                delete links_pending[row.id];
               }
-              delete links_pending[row.id];
             }
           }
         }
@@ -157,9 +176,7 @@ L.CouchMap = function (options) {
       data: nodedata,
       link_lines: {},
       links_handled: false,
-      marker: new L.Marker(nodedata.latlng, {
-        title: id,
-      }).addTo(layer_nodes_fine)
+      marker: options['nodeAdd'](nodedata, layer_nodes_fine)
     };
   }
 
@@ -170,7 +187,7 @@ L.CouchMap = function (options) {
       return;
     }
 
-    var line = L.polyline([node1.data.latlng, node2.data.latlng]).addTo(layer_links);
+    var line = options['linkAdd'](node1, node2, layer_links);
     node1.link_lines[id2] = line;
     node2.link_lines[id1] = line;
     return line;
@@ -181,6 +198,7 @@ L.CouchMap = function (options) {
     layers['nodes'].clearLayers().addLayer( layer_nodes_coarse.clearLayers() );
     layers['links'].clearLayers();
 
+    var count=0;
     for (var i=0, item; item=data.rows[i++]; ) {
       // hack in order to pass parameters to click handler
       (function(item) {
@@ -191,12 +209,14 @@ L.CouchMap = function (options) {
             b = tile2LatLng(x+1, y+1, zoom);
         // place marker in the middle of the tile
         var icon = new L.DivIcon({ html: '<div><span>' + item.value + '</span></div>', className: 'marker-cluster marker-cluster-large', iconSize: new L.Point(40, 40) });
+        count += item.value;
 
         L.marker( [ (a.lat+b.lat)/2, (a.lng+b.lng)/2], {icon: icon}).addTo(layer_nodes_coarse).on('click', function(e) {
           map.fitBounds([a,b])
         });
       }(item));
     }
+    options['nodeCountUpdate'](count);
   }
 
   function getTilesInBbox(bbox, zoom) {
