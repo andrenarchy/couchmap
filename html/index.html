@@ -31,6 +31,7 @@
       }).addTo(map);
 
       var couchmap = new L.CouchMap({
+          couchUrl: 'http://couch.pberg.freifunk.net/couchmap/_design/couchmap/'
       });
       var layers = couchmap.getLayers();
       layers['nodes'].addTo(map);
