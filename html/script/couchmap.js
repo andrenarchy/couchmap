@@ -1,5 +1,6 @@
 L.CouchMap = function (options) {
   var options = L.extend({
+      'couchUrl': '',
       'nodesUrl': '_view/nodes',
       'nodesUrlSpatial': '_spatial/nodes',
       'nodesUrlCoarse': '_view/nodes_coarse',
@@ -66,7 +67,8 @@ L.CouchMap = function (options) {
 
     // probe number of nodes in new bbox, then decide what to do
     requests.push(
-      $.getJSON(options['nodesUrlSpatial'], { "bbox": bboxstr, count: true },
+      $.getJSON(options['couchUrl']+options['nodesUrlSpatial'], 
+        { "bbox": bboxstr, count: true },
         processBboxCount
       ).fail(requestFail)
     );
@@ -79,7 +81,8 @@ L.CouchMap = function (options) {
       var bboxstr = map.getBounds().toBBoxString();
       // fetch all data in bbox
       requests.push(
-        $.getJSON(options['nodesUrlSpatial'], { "bbox": bboxstr },
+        $.getJSON(options['couchUrl']+options['nodesUrlSpatial'], 
+          { "bbox": bboxstr },
           processBboxCountFine
         ).fail(requestFail)
       );
@@ -93,7 +96,7 @@ L.CouchMap = function (options) {
         dataType: 'json',
         contentType: 'application/json',
         data: JSON.stringify({'keys': tiles}),
-        url: options['nodesUrlCoarse']+'?group=true',
+        url: options['couchUrl']+options['nodesUrlCoarse']+'?group=true',
         success: processBboxCountCoarse
       }).fail(requestFail) );
     }
@@ -148,7 +151,7 @@ L.CouchMap = function (options) {
         dataType: 'json',
         contentType: "application/json",
         data: JSON.stringify({"keys": missing_links}),
-        url: '_view/nodes',
+        url: options['couchUrl']+options['nodesUrl'],
         success: function(data){
           for (var i=0, row; row=data.rows[i++]; ) {
             var nodedata = row.value;
@@ -183,7 +186,7 @@ L.CouchMap = function (options) {
   function addLink(id1, id2) {
     var node1 = nodes[id1], node2 = nodes[id2];
 
-    if (node1.link_lines[id2] && node2.neighbor_lines[id1]) {
+    if (node1.link_lines[id2] && node2.link_lines[id1]) {
       return;
     }
 
