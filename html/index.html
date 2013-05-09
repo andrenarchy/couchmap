@@ -41,7 +41,7 @@
         
         function onResize() {
           $("#mapdiv").height( $(window).height() );
-          mapwidget.map.invalidateSize();
+          map.invalidateSize();
         }
         $(window).resize( onResize );
         onResize();
