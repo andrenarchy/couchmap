@@ -19,6 +19,7 @@
   </head>
   <body style="margin: 0; margin: 0;">
     <div id="mapdiv" style="width: 100%; height: 100%;"></div>
+    <p style="width: 100%; text-align: center;">Like what you see? Check CouchMap out on <a href="https://github.com/andrenarchy/couchmap">andrenarchy's github page</a>!</p>
     <form>
       <!--input id="insertbutton" type="button" value="Insert 5000 random datasets in current viewport" /-->
     </form>
@@ -40,7 +41,7 @@
         L.control.layers({}, layers).addTo(map);
         
         function onResize() {
-          $("#mapdiv").height( $(window).height() );
+          $("#mapdiv").height( $(window).height()-50 );
           map.invalidateSize();
         }
         $(window).resize( onResize );
