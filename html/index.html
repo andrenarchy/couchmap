@@ -23,40 +23,42 @@
       <!--input id="insertbutton" type="button" value="Insert 5000 random datasets in current viewport" /-->
     </form>
     <script>
-      // create map
-      var map = L.map('mapdiv', { center: [52.488, 13.35], zoom: 13 });
-      // add an OpenStreetMap tile layer
-      L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
-      }).addTo(map);
+      $(document).ready(function() {
+        // create map
+        var map = L.map('mapdiv', { center: [52.488, 13.35], zoom: 13 });
+        // add an OpenStreetMap tile layer
+        L.tileLayer('http://{s}.tile.osm.org/{z}/{x}/{y}.png', {
+          attribution: '&copy; <a href="http://osm.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
 
-      var couchmap = new L.CouchMap({
-          couchUrl: 'http://couch.pberg.freifunk.net/couchmap/_design/couchmap/'
-      });
-      var layers = couchmap.getLayers();
-      layers['nodes'].addTo(map);
-      layers['links'].addTo(map);
-      L.control.layers({}, layers).addTo(map);
+        var couchmap = new L.CouchMap({
+            couchUrl: 'http://couch.pberg.freifunk.net/couchmap/_design/couchmap/'
+        });
+        var layers = couchmap.getLayers();
+        layers['nodes'].addTo(map);
+        layers['links'].addTo(map);
+        L.control.layers({}, layers).addTo(map);
 
-      $('#insertbutton').on('click', function () {
-        var bounds = map.getBounds(),
-            ne = bounds.getNorthEast(),
-            sw = bounds.getSouthWest(),
-            docs = [];
-        for (var i=0; i<5000; i++) {
-          docs.push({
-            type: 'node',
-            latitude: sw.lat + Math.random()*(ne.lat-sw.lat),
-            longitude: sw.lng + Math.random()*(ne.lng-sw.lng)
+        $('#insertbutton').on('click', function () {
+          var bounds = map.getBounds(),
+              ne = bounds.getNorthEast(),
+              sw = bounds.getSouthWest(),
+              docs = [];
+          for (var i=0; i<5000; i++) {
+            docs.push({
+              type: 'node',
+              latitude: sw.lat + Math.random()*(ne.lat-sw.lat),
+              longitude: sw.lng + Math.random()*(ne.lng-sw.lng)
+            });
+          }
+          $.ajax({
+            type: 'POST',
+            dataType: 'json',
+            contentType: 'application/json',
+            data: JSON.stringify({'docs': docs}),
+            url: '/couchmap/_bulk_docs',
+            success: function () { couchmap.refresh(); }
           });
-        }
-        $.ajax({
-          type: 'POST',
-          dataType: 'json',
-          contentType: 'application/json',
-          data: JSON.stringify({'docs': docs}),
-          url: '/couchmap/_bulk_docs',
-          success: function () { couchmap.refresh(); }
         });
       });
     </script>
