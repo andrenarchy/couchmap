@@ -104,8 +104,12 @@ L.CouchMap = function (options) {
 
   // shows nodes/counts based on client-side clustering
   function processBboxCountFine(data) {
-    layers['nodes'].clearLayers().addLayer( layer_nodes_fine );
-    layers['links'].clearLayers().addLayer( layer_links );
+    if (!layers['nodes'].hasLayer(layer_nodes_fine)) {
+      layers['nodes'].clearLayers().addLayer( layer_nodes_fine );
+    }
+    if (!layers['links'].hasLayer(layer_links)) {
+      layers['links'].clearLayers().addLayer( layer_links );
+    }
     // loop over nodes and find links
     var missing_links = {};
     var bbox_nodes = [];
